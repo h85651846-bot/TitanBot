@@ -1,11 +1,9 @@
 import {
     SlashCommandBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
+    ContainerBuilder,
+    TextDisplayBuilder,
 } from "discord.js";
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { createEmbed } from "../../utils/embeds.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -13,7 +11,6 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BUG_REPORT_BUTTON_ID = "help-bug-report";
 const HELP_MENU_TIMEOUT_MS = 5 * 60 * 1000;
 
 async function getAllCommands() {
@@ -37,7 +34,7 @@ async function getAllCommands() {
             allCommandsText += `\n**${categoryName}**\n`;
             for (const file of files) {
                 const command = file.replace(".js", "");
-                allCommandsText += `\`/${command}\` `;
+                allCommandsText += `/${command} `;
             }
             allCommandsText += "\n";
         }
@@ -50,44 +47,14 @@ async function createHelpMenu(client) {
     const botName = client?.user?.username || "Bot";
     const commandsText = await getAllCommands();
 
-    const embed = createEmbed({ 
-        title: `${botName} Help Center`,
-        description: "All available commands are listed below:",
-        color: 'primary'
-    });
-
-    embed.addFields({
-        name: "Commands",
-        value: commandsText.substring(0, 1024),
-    });
-
-    embed.setFooter({ text: "Made with love" });
-    embed.setTimestamp();
-
-    const bugReportButton = new ButtonBuilder()
-        .setCustomId(BUG_REPORT_BUTTON_ID)
-        .setLabel("Report Bug")
-        .setStyle(ButtonStyle.Danger);
-
-    const supportButton = new ButtonBuilder()
-        .setLabel("Support Server")
-        .setURL("https://discord.gg/QnWNz2dKCE")
-        .setStyle(ButtonStyle.Link);
-
-    const touchpointButton = new ButtonBuilder()
-        .setLabel("Learn from Touchpoint")
-        .setURL("https://www.youtube.com/@TouchDisc")
-        .setStyle(ButtonStyle.Link);
-
-    const buttonRow = new ActionRowBuilder().addComponents([
-        bugReportButton,
-        supportButton,
-        touchpointButton,
-    ]);
+    const container = new ContainerBuilder().addComponents(
+        new TextDisplayBuilder().setContent(`**${botName} Help Center**`),
+        new TextDisplayBuilder().setContent(`All available commands:`),
+        new TextDisplayBuilder().setContent(commandsText)
+    );
 
     return {
-        embeds: [embed],
-        components: [buttonRow],
+        components: [container],
     };
 }
 
@@ -99,24 +66,21 @@ export default {
     async execute(interaction, guildConfig, client) {
         await InteractionHelper.safeDefer(interaction);
 
-        const { embeds, components } = await createHelpMenu(client);
+        const { components } = await createHelpMenu(client);
 
         await InteractionHelper.safeEditReply(interaction, {
-            embeds,
             components,
         });
 
         setTimeout(async () => {
             try {
-                const closedEmbed = createEmbed({
-                    title: "Help menu closed",
-                    description: "Help menu has been closed, use /help again.",
-                    color: "secondary",
-                });
+                const container = new ContainerBuilder().addComponents(
+                    new TextDisplayBuilder().setContent("Help menu closed"),
+                    new TextDisplayBuilder().setContent("Use /help again.")
+                );
 
                 await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [closedEmbed],
-                    components: [],
+                    components: [container],
                 });
             } catch (error) {}
         }, HELP_MENU_TIMEOUT_MS);
