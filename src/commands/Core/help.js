@@ -1,4 +1,4 @@
-﻿import {
+import {
     SlashCommandBuilder,
     ActionRowBuilder,
     ButtonBuilder,
@@ -6,9 +6,6 @@
 } from "discord.js";
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { createEmbed } from "../../utils/embeds.js";
-import {
-    createSelectMenu,
-} from "../../utils/components.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -16,150 +13,55 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CATEGORY_SELECT_ID = "help-category-select";
-const ALL_COMMANDS_ID = "help-all-commands";
 const BUG_REPORT_BUTTON_ID = "help-bug-report";
 const HELP_MENU_TIMEOUT_MS = 5 * 60 * 1000;
 
-const CATEGORY_ICONS = {
-    Core: "ℹ️",
-    Moderation: "🛡️",
-    Economy: "💰",
-    Fun: "🎮",
-    Leveling: "📊",
-    Utility: "🔧",
-    Ticket: "🎫",
-    Welcome: "👋",
-    Giveaway: "🎉",
-    Counter: "🔢",
-    Tools: "🛠️",
-    Search: "🔍",
-    Reaction_Roles: "🎭",
-    Community: "👥",
-    Birthday: "🎂",
-    Config: "⚙️",
-};
-
-
-
-
-
-async function createInitialHelpMenu(client) {
+async function getAllCommands() {
     const commandsPath = path.join(__dirname, "../../commands");
     const categoryDirs = (
         await fs.readdir(commandsPath, { withFileTypes: true })
-    )
-        .filter((dirent) => dirent.isDirectory())
-        .map((dirent) => dirent.name)
-        .sort();
+    ).filter((dirent) => dirent.isDirectory());
 
-    const options = [
-        {
-            label: "📋 All Commands",
-            description: "View all available commands with pagination",
-            value: ALL_COMMANDS_ID,
-        },
-        ...categoryDirs.map((category) => {
-            const categoryName =
-                category.charAt(0).toUpperCase() +
-                category.slice(1).toLowerCase();
-            const icon = CATEGORY_ICONS[categoryName] || "🔍";
-            return {
-                label: `${icon} ${categoryName}`,
-                description: `View commands in the ${categoryName} category`,
-                value: category,
-            };
-        }),
-    ];
+    let allCommandsText = "";
 
+    for (const dir of categoryDirs) {
+        const category = dir.name;
+        const categoryPath = path.join(commandsPath, category);
+        const files = (await fs.readdir(categoryPath)).filter(f => f.endsWith(".js"));
+
+        const categoryName =
+            category.charAt(0).toUpperCase() +
+            category.slice(1).toLowerCase();
+
+        if (files.length > 0) {
+            allCommandsText += `\n**${categoryName}**\n`;
+            for (const file of files) {
+                const command = file.replace(".js", "");
+                allCommandsText += `\`/${command}\` `;
+            }
+            allCommandsText += "\n";
+        }
+    }
+
+    return allCommandsText || "No commands found.";
+}
+
+async function createHelpMenu(client) {
     const botName = client?.user?.username || "Bot";
+    const commandsText = await getAllCommands();
+
     const embed = createEmbed({ 
-        title: `🤖 ${botName} Help Center`,
-        description: "Your all-in-one Discord companion for moderation, economy, fun, and server management.",
+        title: `${botName} Help Center`,
+        description: "All available commands are listed below:",
         color: 'primary'
     });
 
-    embed.addFields(
-        {
-            name: "🛡️ **Moderation**",
-            value: "Server moderation, user management, and enforcement tools",
-            inline: true
-        },
-        {
-            name: "💰 **Economy**",
-            value: "Currency system, shops, and virtual economy",
-            inline: true
-        },
-        {
-            name: "🎮 **Fun**",
-            value: "Games, entertainment, and interactive commands",
-            inline: true
-        },
-        {
-            name: "📊 **Leveling**",
-            value: "User levels, XP system, and progression tracking",
-            inline: true
-        },
-        {
-            name: "🎫 **Tickets**",
-            value: "Support ticket system for server management",
-            inline: true
-        },
-        {
-            name: "🎉 **Giveaways**",
-            value: "Automated giveaway management and distribution",
-            inline: true
-        },
-        {
-            name: "👋 **Welcome**",
-            value: "Member welcome messages and onboarding",
-            inline: true
-        },
-        {
-            name: "🎂 **Birthdays**",
-            value: "Birthday tracking and celebration features",
-            inline: true
-        },
-        {
-            name: "👥 **Community**",
-            value: "Community tools, applications, and member engagement",
-            inline: true
-        },
-        {
-            name: "⚙️ **Config**",
-            value: "Server and bot configuration management commands",
-            inline: true
-        },
-        {
-            name: "🔢 **Counter**",
-            value: "Live counter channel setup and counter controls",
-            inline: true
-        },
-        {
-            name: "🎙️ **Join to Create**",
-            value: "Dynamic voice channel creation and management",
-            inline: true
-        },
-        {
-            name: "🎭 **Reaction Roles**",
-            value: "Self-assignable roles using reaction-role systems",
-            inline: true
-        },
-        {
-            name: "✅ **Verification**",
-            value: "Member verification workflows and access gating",
-            inline: true
-        },
-        {
-            name: "🔧 **Utilities**",
-            value: "Useful tools and server utilities",
-            inline: true
-        }
-    );
-
-    embed.setFooter({ 
-        text: "Made with ❤️" 
+    embed.addFields({
+        name: "Commands",
+        value: commandsText.substring(0, 1024),
     });
+
+    embed.setFooter({ text: "Made with love" });
     embed.setTimestamp();
 
     const bugReportButton = new ButtonBuilder()
@@ -177,12 +79,6 @@ async function createInitialHelpMenu(client) {
         .setURL("https://www.youtube.com/@TouchDisc")
         .setStyle(ButtonStyle.Link);
 
-    const selectRow = createSelectMenu(
-        CATEGORY_SELECT_ID,
-        "Select to view the commands",
-        options,
-    );
-
     const buttonRow = new ActionRowBuilder().addComponents([
         bugReportButton,
         supportButton,
@@ -191,21 +87,19 @@ async function createInitialHelpMenu(client) {
 
     return {
         embeds: [embed],
-        components: [buttonRow, selectRow],
+        components: [buttonRow],
     };
 }
 
 export default {
     data: new SlashCommandBuilder()
         .setName("help")
-        .setDescription("Displays the help menu with all available commands"),
+        .setDescription("Displays all commands"),
 
     async execute(interaction, guildConfig, client) {
-        
-        const { MessageFlags } = await import('discord.js');
         await InteractionHelper.safeDefer(interaction);
-        
-        const { embeds, components } = await createInitialHelpMenu(client);
+
+        const { embeds, components } = await createHelpMenu(client);
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds,
@@ -224,11 +118,7 @@ export default {
                     embeds: [closedEmbed],
                     components: [],
                 });
-            } catch (error) {
-                
-            }
+            } catch (error) {}
         }, HELP_MENU_TIMEOUT_MS);
     },
 };
-
-
